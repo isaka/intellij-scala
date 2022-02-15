@@ -531,7 +531,7 @@ class ScStableCodeReferenceImpl(node: ASTNode) extends ScReferenceImpl(node) wit
           //so this is full qualified reference => findClass, or findPackage
           val manager = ScalaPsiManager.instance(getProject)
           val classes = manager.getCachedClasses(getResolveScope, refText)
-          val pack    = manager.getCachedPackage(refText)
+          val pack    = manager.getCachedPackageInProjectScope(refText)
 
           pack.foreach(processor.execute(_, ScalaResolveState.empty))
           classes.foreach(processor.execute(_, ScalaResolveState.empty))

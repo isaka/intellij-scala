@@ -89,7 +89,7 @@ abstract class ScalaTestingTestCase
 
   override protected def createTestFromPackage(packageName: String): RunnerAndConfigurationSettings =
     inReadAction {
-      val psiPackage = ScalaPsiManager.instance(getProject).getCachedPackage(packageName)
+      val psiPackage = ScalaPsiManager.instance(getProject).getCachedPackageInProjectScope(packageName)
       val psiDirectory = psiPackage.map(_.getDirectories().head) match {
         case Some(dir) => dir
         case None =>

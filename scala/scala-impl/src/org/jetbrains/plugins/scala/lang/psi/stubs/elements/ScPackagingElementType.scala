@@ -7,6 +7,7 @@ import org.jetbrains.plugins.scala.lang.psi.impl.toplevel.packaging.ScPackagingI
 import org.jetbrains.plugins.scala.lang.psi.stubs.index.ScalaIndexKeys
 import org.jetbrains.plugins.scala.lang.psi.stubs.{RawStubElement, ScPackagingStub}
 import org.jetbrains.plugins.scala.lang.refactoring.util.ScalaNamesUtil
+import org.jetbrains.plugins.scala.lang.psi.stubs.index.ScalaIndexKeys
 
 object ScPackagingElementType extends ScStubElementType[ScPackagingStub, ScPackaging]("packaging") {
 
@@ -36,8 +37,13 @@ object ScPackagingElementType extends ScStubElementType[ScPackagingStub, ScPacka
       isExplicit = packaging.isExplicit
     )
 
+
+  /**
+   * NOTE: indexing of packaging `package aa.bb.cc` will add three keys to the index: aa, aa.bb, aa.bb.cc<br>
+   * see documentation of [[ScalaIndexKeys.PACKAGING_FQN_KEY]] for details
+   */
   override def indexStub(stub: ScPackagingStub, sink: IndexSink): Unit = {
-    import org.jetbrains.plugins.scala.lang.psi.stubs.index.ScalaIndexKeys.PACKAGE_FQN_KEY
+    import ScalaIndexKeys.PACKAGING_FQN_KEY
 
     val prefix = stub.parentPackageName
     var ownNamePart = stub.packageName
@@ -45,9 +51,11 @@ object ScPackagingElementType extends ScStubElementType[ScPackagingStub, ScPacka
     def append(postfix: String): String =
       ScalaNamesUtil.cleanFqn(if (prefix.nonEmpty) prefix + "." + postfix else postfix)
 
+    sink.occurrence[ScPackaging, CharSequence](PACKAGING_FQN_KEY, append(ownNamePart))
+
     var i = 0
     do {
-      sink.occurrence[ScPackaging, CharSequence](PACKAGE_FQN_KEY, append(ownNamePart))
+      sink.occurrence[ScPackaging, CharSequence](PACKAGING_FQN_KEY, append(ownNamePart))
       i = ownNamePart.lastIndexOf(".")
       if (i > 0) {
         ownNamePart = ownNamePart.substring(0, i)

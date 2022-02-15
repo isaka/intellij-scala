@@ -33,14 +33,23 @@ abstract class ScalaHighlightingTestBase extends ScalaFixtureTestCase with Match
     assertErrorsText(code, messages.mkString("\n"))
 
   def assertErrorsText(code: String, messagesConcatenated: String): Unit = {
-    // handle windows '\r', ignore empty lines
-    val messagesConcatenatedClean =
-      messagesConcatenated.withNormalizedSeparator.replaceAll("\\n\\n+", "\n").trim
-
     val actualMessages = errorsFromScalaCode(code)
+    assertErrorsText(messagesConcatenated, actualMessages)
+  }
+
+  def assertErrorsText(file: PsiFile, messagesConcatenated: String): Unit = {
+    val actualMessages = errorsFromScalaCode(file)
+    assertErrorsText(messagesConcatenated, actualMessages)
+  }
+
+  private def assertErrorsText(expectedMessagesConcatenated: String, actualMessages: List[Message]): Unit = {
+    // handle windows '\r', ignore empty lines
+    val expectedMessagesConcatenatedClean =
+      expectedMessagesConcatenated.withNormalizedSeparator.replaceAll("\\n\\n+", "\n").trim
+
     val actualMessagesConcatenated = actualMessages.mkString("\n")
     assertEqualsFailable(
-      messagesConcatenatedClean,
+      expectedMessagesConcatenatedClean,
       actualMessagesConcatenated
     )
   }

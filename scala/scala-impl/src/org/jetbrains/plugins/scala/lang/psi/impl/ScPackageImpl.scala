@@ -101,7 +101,7 @@ object ScPackageImpl {
 
   def findPackage(packageName: String)
                  (implicit manager: ScalaPsiManager): ScPackageImpl =
-    manager.getCachedPackage(packageName)
+    manager.getCachedPackageInProjectScope(packageName)
       .map(apply)
       .orNull
 

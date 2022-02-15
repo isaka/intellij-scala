@@ -39,6 +39,7 @@ import org.jetbrains.plugins.scala.lang.psi.stubs.index.{ScPackageObjectFqnIndex
 import org.jetbrains.plugins.scala.lang.psi.types._
 import org.jetbrains.plugins.scala.lang.psi.types.api.designator.ScProjectionType
 import org.jetbrains.plugins.scala.lang.psi.types.api.{Any, ParameterizedType, TypeParameterType}
+import org.jetbrains.plugins.scala.lang.refactoring.util.ScalaNamesUtil
 import org.jetbrains.plugins.scala.lang.refactoring.util.ScalaNamesUtil._
 import org.jetbrains.plugins.scala.lang.resolve.SyntheticClassProducer
 import org.jetbrains.plugins.scala.macroAnnotations.{CachedInUserData, CachedWithoutModificationCount, ValueWrapper}
@@ -132,33 +133,59 @@ class ScalaPsiManager(implicit val project: Project) {
   private def getTopLevelExtensionsByPackageCached(fqn: String, scope: GlobalSearchScope): Iterable[ScExtension] =
     TOP_LEVEL_EXTENSION_BY_PKG_KEY.elements(cleanFqn(fqn), scope)
 
+  /**
+   * Note, these methods are involved under the hood:
+   *  - [[org.jetbrains.plugins.scala.finder.ScalaPsiElementFinderImpl.findPackage]]
+   *  - [[syntheticPackage]]
+   *  - [[org.jetbrains.plugins.scala.lang.psi.impl.toplevel.synthetic.ScSyntheticPackage.apply]]
+   */
   @CachedWithoutModificationCount(ValueWrapper.SofterReference, clearCacheOnTopLevelChange)
-  def getCachedPackage(inFqn: String): Option[PsiPackage] = {
+  def getCachedPackageInProjectScope(inFqn: String): Option[PsiPackage] = {
     //to find java packages with scala keyword name as PsiPackage not ScSyntheticPackage
     val fqn = cleanFqn(inFqn)
-    Option(JavaPsiFacade.getInstance(project).findPackage(fqn))
+    val fromJavaFacade = JavaPsiFacade.getInstance(project).findPackage(fqn)
+    Option(fromJavaFacade)
   }
 
   private[this] def isPackageOutOfScope(`package`: PsiPackage)
-                                       (implicit scope: GlobalSearchScope): Boolean =
-    `package`.getSubPackages(scope).isEmpty &&
-      `package`.getClasses(scope).isEmpty
+                                       (implicit scope: GlobalSearchScope): Boolean = {
+    val subpackages = `package`.getSubPackages(scope)
+    val result = subpackages.isEmpty && {
+      val classes = `package`.getClasses(scope)
+      classes.isEmpty
+    }
+    result
+  }
 
   private[this] def isScalaPackageInScope(fqn: String)
                                          (implicit scope: GlobalSearchScope): Boolean = {
-    ScPackagingFqnIndex.instance.hasElement(fqn, project, scope, classOf[ScPackaging]) ||
-      ScPackageObjectFqnIndex.instance.hasElement(fqn, project, scope, classOf[PsiClass])
+    val isInPackaging = ScPackagingFqnIndex.instance.containsSuitableElement(fqn, project, scope, classOf[ScPackaging], packaging => {
+      val fqnFromIndex = packaging.fullPackageName
+      fqnFromIndex != null && ScalaNamesUtil.isSubPackageOf(fqn, fqnFromIndex)
+    })
+    isInPackaging || {
+      val isInPackageObject = ScPackageObjectFqnIndex.instance.containsSuitableElement(fqn, project, scope, classOf[ScObject], packageObject => {
+        val fqnFromIndex = packageObject.qualifiedName
+        fqnFromIndex != null && ScalaNamesUtil.isSubPackageOf(fqn, fqnFromIndex)
+      })
+      isInPackageObject
+    }
   }
 
   def getCachedPackageInScope(fqn: String)
                              (implicit scope: GlobalSearchScope): Option[PsiPackage] =
     if (DumbService.getInstance(project).isDumb)
       None
-    else
-      getCachedPackage(fqn).filter { `package` =>
-        isScalaPackageInScope(fqn) ||
-          !isPackageOutOfScope(`package`)
+    else {
+      val cached = getCachedPackageInProjectScope(fqn)
+      cached.filter { `package` =>
+        val inScope = isScalaPackageInScope(fqn)
+        inScope || {
+          val outOfScope = isPackageOutOfScope(`package`)
+          !outOfScope
+        }
       }
+    }
 
   @CachedWithoutModificationCount(ValueWrapper.SofterReference, clearCacheOnTopLevelChange)
   def getCachedClass(scope: GlobalSearchScope, fqn: String): Option[PsiClass] = {
@@ -180,10 +207,11 @@ class ScalaPsiManager(implicit val project: Project) {
   @CachedWithoutModificationCount(ValueWrapper.SofterReference, clearCacheOnTopLevelChange)
   def getTopLevelDefinitionsByPackage(pkgFqn: String, scope: GlobalSearchScope): Iterable[ScMember] = {
     val fqn = cleanFqn(pkgFqn)
-    TOP_LEVEL_VAL_OR_VAR_BY_PKG_KEY.elements(fqn, scope) ++
+    val result = TOP_LEVEL_VAL_OR_VAR_BY_PKG_KEY.elements(fqn, scope) ++
       TOP_LEVEL_TYPE_ALIAS_BY_PKG_KEY.elements(fqn, scope) ++
       TOP_LEVEL_FUNCTION_BY_PKG_KEY.elements(fqn, scope) ++
       TOP_LEVEL_EXTENSION_BY_PKG_KEY.elements(fqn, scope)
+    result
   }
 
   def getTypeAliasesByName(name: String, scope: GlobalSearchScope): Iterable[ScTypeAlias] =
@@ -278,7 +306,8 @@ class ScalaPsiManager(implicit val project: Project) {
     val fromScala      = ScalaShortNamesCacheManager.getInstance(project).getClassesByFQName(fqn, scope)
     val scalaSynthetic = SyntheticClasses.get(scope.getProject).findClasses(fqn)
     val synthetic      = SyntheticClassProducer.getAllClasses(fqn, scope)
-    Array.concat(fromScala.toArray, classes, synthetic, scalaSynthetic)
+    val result = Array.concat(fromScala.toArray, classes, synthetic, scalaSynthetic)
+    result
   }
 
   @CachedWithoutModificationCount(ValueWrapper.SofterReference, clearCacheOnTopLevelChange)
@@ -357,6 +386,7 @@ class ScalaPsiManager(implicit val project: Project) {
     PsiManager.getInstance(project).addPsiTreeChangeListener(psiChangeListener, project.unloadAwareDisposable)
   }
 
+  //NOTE: java also caches some packages in com.intellij.psi.impl.JavaPsiFacadeImpl.myPackageCache
   private val syntheticPackages = ContainerUtil.createConcurrentWeakValueMap[String, AnyRef]()
   private val emptyMarker: AnyRef = ObjectUtils.sentinel("syntheticPackageEmptyMarker")
 

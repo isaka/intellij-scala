@@ -158,7 +158,7 @@ trait FileDeclarationsHolder
                 return false
             }
 
-          manager.getCachedPackage(fqn)
+          manager.getCachedPackageInProjectScope(fqn)
             .foreach { `package` =>
               if (!packageProcessDeclarations(`package`)(processor, state, null, place))
                 return false

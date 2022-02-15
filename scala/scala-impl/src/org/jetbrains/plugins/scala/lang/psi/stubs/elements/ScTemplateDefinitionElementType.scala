@@ -190,7 +190,7 @@ abstract class ScTemplateDefinitionElementType[TypeDef <: ScTemplateDefinition](
         val index = packageName.lastIndexOf('.')
         if (index < 0) packageName else packageName.substring(index + 1, packageName.length)
       }
-      sink.occurrence[PsiClass, CharSequence](PACKAGE_OBJECT_FQN_KEY, packageName)
+      sink.occurrence[ScObject, CharSequence](PACKAGE_OBJECT_FQN_KEY, packageName)
       sink.occurrence[PsiClass, String](PACKAGE_OBJECT_SHORT_NAME_KEY, shortName)
     }
   }

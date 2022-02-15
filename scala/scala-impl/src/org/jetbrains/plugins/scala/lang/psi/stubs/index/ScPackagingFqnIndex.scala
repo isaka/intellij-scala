@@ -6,7 +6,7 @@ import org.jetbrains.plugins.scala.lang.psi.api.toplevel.ScPackaging
 final class ScPackagingFqnIndex extends ScFqnHashStubIndexExtension[ScPackaging] {
 
   override def getKey: StubIndexKey[CharSequence, ScPackaging] =
-    ScalaIndexKeys.PACKAGE_FQN_KEY
+    ScalaIndexKeys.PACKAGING_FQN_KEY
 }
 
 object ScPackagingFqnIndex {

@@ -97,6 +97,12 @@ object ScalaNamesUtil {
     ls == rs || cleanFqn(ls) == cleanFqn(rs)
   }
 
+  def isSubPackageOf(l: CharSequence, r: CharSequence): Boolean = {
+    val ls = l.toString
+    val rs = r.toString
+    ls == rs || cleanFqn(rs).startsWith(cleanFqn(ls))
+  }
+
   def equivalent(l: String, r: String): Boolean =
     l == r || clean(l) == clean(r)
 
