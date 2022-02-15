@@ -1,14 +1,8 @@
-package org.jetbrains.plugins.scala.lang.psi
-package stubs
-package index
+package org.jetbrains.plugins.scala.lang.psi.stubs.index
 
 import com.intellij.psi.stubs.StubIndexKey
 import org.jetbrains.plugins.scala.lang.psi.api.statements.ScTypeAlias
 
-/**
-  * User: Alexander Podkhalyuzin
-  * Date: 18.10.2008
-  */
 class ScTypeAliasNameIndex extends ScStringStubIndexExtension[ScTypeAlias] {
 
   override def getKey: StubIndexKey[String, ScTypeAlias] =
@@ -20,9 +14,12 @@ class ScStableTypeAliasNameIndex extends ScStringStubIndexExtension[ScTypeAlias]
     ScalaIndexKeys.STABLE_ALIAS_NAME_KEY
 }
 
-class ScStableTypeAliasFqnIndex extends ScIntStubIndexExtension[ScTypeAlias] {
-  override def getKey: StubIndexKey[Integer, ScTypeAlias] =
+class ScStableTypeAliasFqnIndex extends ScFqnHashStubIndexExtension[ScTypeAlias] {
+  override def getKey: StubIndexKey[CharSequence, ScTypeAlias] =
     ScalaIndexKeys.STABLE_ALIAS_FQN_KEY
+}
+object ScStableTypeAliasFqnIndex {
+  def instance: ScStableTypeAliasFqnIndex = new ScStableTypeAliasFqnIndex
 }
 
 class ScAliasedClassNameKey extends ScStringStubIndexExtension[ScTypeAlias] {

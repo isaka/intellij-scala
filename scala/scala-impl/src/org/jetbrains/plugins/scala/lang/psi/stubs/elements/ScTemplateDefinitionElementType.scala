@@ -1,8 +1,4 @@
-package org.jetbrains.plugins.scala
-package lang
-package psi
-package stubs
-package elements
+package org.jetbrains.plugins.scala.lang.psi.stubs.elements
 
 import com.intellij.lang.Language
 import com.intellij.psi.impl.java.stubs.index.JavaStubIndexKeys
@@ -10,11 +6,13 @@ import com.intellij.psi.stubs.{IndexSink, StubElement, StubInputStream, StubOutp
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.{PsiClass, PsiElement}
 import com.intellij.util.ArrayUtil.EMPTY_STRING_ARRAY
+import org.jetbrains.plugins.scala.ScalaLanguage
 import org.jetbrains.plugins.scala.extensions._
 import org.jetbrains.plugins.scala.lang.psi.api.base.ScAnnotation
 import org.jetbrains.plugins.scala.lang.psi.api.statements.ScFunctionDefinition
 import org.jetbrains.plugins.scala.lang.psi.api.toplevel.typedef._
 import org.jetbrains.plugins.scala.lang.psi.stubs.impl.ScTemplateDefinitionStubImpl
+import org.jetbrains.plugins.scala.lang.psi.stubs.{ScImplicitStub, ScTemplateDefinitionStub}
 import org.jetbrains.plugins.scala.lang.refactoring.util.ScalaNamesUtil
 
 /**
@@ -136,7 +134,7 @@ abstract class ScTemplateDefinitionElementType[TypeDef <: ScTemplateDefinition](
   }
 
   override final def indexStub(stub: ScTemplateDefinitionStub[TypeDef], sink: IndexSink): Unit = {
-    import index.ScalaIndexKeys._
+    import org.jetbrains.plugins.scala.lang.psi.stubs.index.ScalaIndexKeys._
 
     if (stub.isScriptFileClass) return
     val scalaName = stub.getName
@@ -173,7 +171,7 @@ abstract class ScTemplateDefinitionElementType[TypeDef <: ScTemplateDefinition](
 
     val fqn = ScalaNamesUtil.cleanFqn(stub.getQualifiedName)
     if (fqn != null && !stub.isLocal) {
-      sink.occurrence[PsiClass, java.lang.Integer](FQN_KEY, fqn.hashCode)
+      sink.occurrence[PsiClass, CharSequence](CLASS_FQN_KEY, fqn)
       val i = fqn.lastIndexOf(".")
       val pack =
         if (i == -1) ""
@@ -192,7 +190,7 @@ abstract class ScTemplateDefinitionElementType[TypeDef <: ScTemplateDefinition](
         val index = packageName.lastIndexOf('.')
         if (index < 0) packageName else packageName.substring(index + 1, packageName.length)
       }
-      sink.occurrence[PsiClass, java.lang.Integer](PACKAGE_OBJECT_KEY, packageName.hashCode)
+      sink.occurrence[PsiClass, CharSequence](PACKAGE_OBJECT_FQN_KEY, packageName)
       sink.occurrence[PsiClass, String](PACKAGE_OBJECT_SHORT_NAME_KEY, shortName)
     }
   }
