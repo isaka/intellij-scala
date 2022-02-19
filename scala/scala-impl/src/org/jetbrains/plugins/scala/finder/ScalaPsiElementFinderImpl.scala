@@ -1,8 +1,5 @@
 package org.jetbrains.plugins.scala.finder
 
-import java.util
-import java.util.Collections
-
 import com.intellij.openapi.project.{DumbService, Project}
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.{PsiClass, PsiElementFinder, PsiPackage}
@@ -10,9 +7,11 @@ import org.jetbrains.plugins.scala.caches.ScalaShortNamesCacheManager
 import org.jetbrains.plugins.scala.lang.psi.api.toplevel.typedef.{ScObject, ScTrait, ScTypeDefinition}
 import org.jetbrains.plugins.scala.lang.psi.impl.ScalaPsiManager
 
+import java.util
+import java.util.Collections
 import scala.jdk.CollectionConverters._
 
-class ScalaClassFinder(project: Project) extends PsiElementFinder {
+final class ScalaPsiElementFinderImpl(project: Project) extends PsiElementFinder {
   private def psiManager  : ScalaPsiManager             = ScalaPsiManager.instance(project)
   private def cacheManager: ScalaShortNamesCacheManager = ScalaShortNamesCacheManager.getInstance(project)
 
@@ -58,7 +57,6 @@ class ScalaClassFinder(project: Project) extends PsiElementFinder {
   override def getClassNames(psiPackage: PsiPackage, scope: GlobalSearchScope): util.Set[String] = {
     if (psiManager == null) Collections.emptySet()
     else psiManager.getJavaPackageClassNames(psiPackage, scope).asJava
-
   }
 
   override def getClasses(psiPackage: PsiPackage, scope: GlobalSearchScope): Array[PsiClass] = {
