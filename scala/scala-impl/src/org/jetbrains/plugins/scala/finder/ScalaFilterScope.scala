@@ -51,6 +51,10 @@ sealed abstract class FilterScope(val delegate: GlobalSearchScope)
       delegate == that.delegate
     case _ => false
   }
+
+  //overriding toString for a more convenient representation in the debugger variables/watches
+  override def toString: String =
+    "filter of " + delegate.toString
 }
 
 final class ScalaFilterScope private(delegate: GlobalSearchScope)
