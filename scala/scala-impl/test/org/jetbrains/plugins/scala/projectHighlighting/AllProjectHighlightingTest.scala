@@ -101,14 +101,15 @@ object AllProjectHighlightingTest {
     case path => throw new IllegalArgumentException(s"Unknown test path: $path")
   }
 
+  //Share same random seed among all tests for a simpler reproducibility
+  private val randomSeed: Long = 1645454508643L //System.currentTimeMillis() // TODO
+
   def annotateScalaFile(file: PsiFile, reporter: ProgressReporter, relPath: Option[String] = None): Unit = {
     val scalaFile = file.getViewProvider.getPsi(ScalaLanguage.INSTANCE) match {
       case f: ScalaFile => f
       case _            => return
     }
 
-
-    val randomSeed = System.currentTimeMillis()
     //report random seed on errors to be able to reproduce the issue locally
     val randomSeedDebugSuffix = s" (random seed: $randomSeed)"
     val random = new Random(randomSeed)
