@@ -1,7 +1,4 @@
-package org.jetbrains.plugins.scala
-package lang
-package psi
-package impl
+package org.jetbrains.plugins.scala.lang.psi.impl
 
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
@@ -12,17 +9,15 @@ import com.intellij.psi.scope.{NameHint, PsiScopeProcessor}
 import com.intellij.psi.search.GlobalSearchScope
 import org.jetbrains.plugins.scala.caches.ScalaShortNamesCacheManager
 import org.jetbrains.plugins.scala.extensions._
+import org.jetbrains.plugins.scala.lang.psi.ScalaPsiUtil
 import org.jetbrains.plugins.scala.lang.psi.api.toplevel.typedef.{ScClass, ScEnum, ScGivenDefinition, ScObject}
 import org.jetbrains.plugins.scala.lang.psi.api.{ScPackage, ScPackageLike}
 import org.jetbrains.plugins.scala.lang.psi.impl.toplevel.synthetic.SyntheticClasses
 import org.jetbrains.plugins.scala.lang.resolve.processor.{BaseProcessor, ResolveProcessor}
 import org.jetbrains.plugins.scala.lang.resolve.{ResolveTargets, ScalaResolveState}
 import org.jetbrains.plugins.scala.macroAnnotations.CachedInUserData
+import org.jetbrains.plugins.scala.{ScalaLanguage, ScalaLowerCase}
 
-/**
- * User: Alexander Podkhalyuzin
- * Date: 22.04.2010
- */
 final class ScPackageImpl private(val pack: PsiPackage) extends PsiPackageImpl(
   pack.getManager.asInstanceOf[PsiManagerEx],
   pack.getQualifiedName
@@ -30,35 +25,44 @@ final class ScPackageImpl private(val pack: PsiPackage) extends PsiPackageImpl(
 
   import ScPackageImpl._
 
-  override def processDeclarations(processor: PsiScopeProcessor,
-                                   state: ResolveState,
-                                   lastParent: PsiElement,
-                                   place: PsiElement): Boolean = {
+  override def processDeclarations(
+    processor: PsiScopeProcessor,
+    state: ResolveState,
+    lastParent: PsiElement,
+    place: PsiElement
+  ): Boolean = {
     val isInScalaContext = place.getLanguage.isKindOf(ScalaLanguage.INSTANCE)
     implicit val manager: ScalaPsiManager = ScalaPsiManager.instance(getProject)
 
     def processPackageObject(`object`: ScObject): Boolean =
       ScPackageLike.processPackageObject(`object`)(processor, state, lastParent, place)
 
-    getQualifiedName match {
-      case ScalaLowerCase if isInScalaContext =>
-        implicit val scope: GlobalSearchScope = findScope(processor, place)
+    val packageFqn = getQualifiedName
+    if (isInScalaContext && packageFqn == ScalaLowerCase) {
+      implicit val scope: GlobalSearchScope = findScope(processor, place)
 
-        if (!BaseProcessor.isImplicitProcessor(processor)) {
-          processScalaPackage(processor)
-        }
+      if (!BaseProcessor.isImplicitProcessor(processor)) {
+        processScalaPackage(processor)
+      }
 
-        manager.getCachedClasses(scope, ScalaLowerCase)
-          .findByType[ScObject]
-          .forall(processPackageObject)
-      case _ if !packageProcessDeclarations(pack)(processor, state, lastParent, place) => false
-      case _ if isInScalaContext =>
-        val scope = findScope(processor, place)
-        if (!findPackageObject(scope).forall(processPackageObject)) return false
-        if (!processTopLevelDeclarations(processor, state, place)) return false
+      manager.getCachedClasses(scope, ScalaLowerCase)
+        .findByType[ScObject]
+        .forall(processPackageObject)
+    }
+    else if (!packageProcessDeclarations(pack)(processor, state, lastParent, place))
+      false
+    else if(isInScalaContext) {
+      val scope = findScope(processor, place)
+      val maybePackageObject = findPackageObject(scope)
+      if (!maybePackageObject.forall(processPackageObject))
+        false
+      else if (!processTopLevelDeclarations(processor, state, place))
+        false
+      else
         true
-      case _ =>
-        true
+    }
+    else {
+      true
     }
   }
 
@@ -68,17 +72,20 @@ final class ScPackageImpl private(val pack: PsiPackage) extends PsiPackageImpl(
 
   override def fqn: String = getQualifiedName
 
-  override def getParentPackage: PsiPackageImpl =
-    ScalaPsiUtil.parentPackage(getQualifiedName, getProject)
-      .orNull
+  override def getParentPackage: PsiPackageImpl = {
+    val parent = ScalaPsiUtil.parentPackage(getQualifiedName, getProject)
+    parent.orNull
+  }
 
-  override def getSubPackages: Array[PsiPackage] =
-    super.getSubPackages
-      .map(ScPackageImpl(_))
+  override def getSubPackages: Array[PsiPackage] = {
+    val subpackages = super.getSubPackages
+    subpackages.map(ScPackageImpl(_))
+  }
 
-  override def getSubPackages(scope: GlobalSearchScope): Array[PsiPackage] =
-    super.getSubPackages(scope)
-      .map(ScPackageImpl(_))
+  override def getSubPackages(scope: GlobalSearchScope): Array[PsiPackage] = {
+    val subpackages = super.getSubPackages(scope)
+    subpackages.map(ScPackageImpl(_))
+  }
 
   override def isValid: Boolean = true
 
@@ -100,10 +107,11 @@ object ScPackageImpl {
     findPackage(packageName)(ScalaPsiManager.instance(project))
 
   def findPackage(packageName: String)
-                 (implicit manager: ScalaPsiManager): ScPackageImpl =
-    manager.getCachedPackageInProjectScope(packageName)
-      .map(apply)
-      .orNull
+                 (implicit manager: ScalaPsiManager): ScPackageImpl = {
+    val cachedPackage = manager.getCachedPackageInProjectScope(packageName)
+    val scalaPackage = cachedPackage.map(ScPackageImpl.apply)
+    scalaPackage.orNull
+  }
 
   /**
    * Process synthetic classes for scala._ package
@@ -174,10 +182,11 @@ object ScPackageImpl {
                 case _                   => place.resolveScope
               }
 
-              val classes = manager.getCachedClasses(scope, fqn).iterator
+              val classes = manager.getCachedClasses(scope, fqn)
+              val classesIterator = classes.iterator
               var stop = false
-              while (classes.hasNext && !stop) {
-                val clazz = classes.next()
+              while (classesIterator.hasNext && !stop) {
+                val clazz = classesIterator.next()
                 clazz match {
                   case cls: ScClass if cls.isTopLevel =>
                     cls.getSyntheticImplicitMethod.foreach { synMethod =>
@@ -209,10 +218,10 @@ object ScPackageImpl {
             }
             val qName: String = psiPack.getQualifiedName
             val subpackageQName: String = if (qName.isEmpty) name else qName + "." + name
-            manager.getCachedPackageInScope(subpackageQName)(place.getResolveScope)
-              .foreach { `package` =>
-                if (!processor.execute(`package`, state)) return false
-              }
+            val cachedPackage = manager.getCachedPackageInScope(subpackageQName)(place.getResolveScope)
+            cachedPackage.foreach { `package` =>
+              if (!processor.execute(`package`, state)) return false
+            }
             true
           } else true
         } finally {

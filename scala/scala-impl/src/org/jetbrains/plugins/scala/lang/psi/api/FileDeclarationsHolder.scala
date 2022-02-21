@@ -23,7 +23,6 @@ import org.jetbrains.plugins.scala.lang.resolve.processor.precedence.{Precedence
 import org.jetbrains.plugins.scala.lang.resolve.processor.{BaseProcessor, ResolveProcessor}
 import org.jetbrains.plugins.scala.project.{ModuleExt, ProjectPsiElementExt, ScalaLanguageLevel}
 import org.jetbrains.plugins.scala.settings.ScalaProjectSettings
-import org.jetbrains.plugins.scala.settings.ScalaProjectSettings.AliasExportSemantics
 
 /**
   * User: Dmitry Naydanov
@@ -101,11 +100,11 @@ trait FileDeclarationsHolder
               }
             }
           } else {
-            manager.getCachedPackageInScope(name)
-              .map(ScPackageImpl(_))
-              .foreach { `package` =>
-                if (!processor.execute(`package`, state)) return false
-              }
+            val cachedPackage = manager.getCachedPackageInScope(name).map(ScPackageImpl(_))
+            cachedPackage.foreach { `package` =>
+              if (!processor.execute(`package`, state))
+                return false
+            }
           }
         }
     }
@@ -137,32 +136,32 @@ trait FileDeclarationsHolder
     file.children.filterByType[ScImportStmt].toSeq.reverse
   }
 
-  def processImplicitImports(processor: PsiScopeProcessor,
-                             state: ResolveState,
-                             place: PsiElement)
-                            (implicit manager: ScalaPsiManager,
-                             scope: GlobalSearchScope)
-  : Boolean = {
+  def processImplicitImports(
+    processor: PsiScopeProcessor,
+    state: ResolveState,
+    place: PsiElement
+  )(implicit manager: ScalaPsiManager, scope: GlobalSearchScope): Boolean = {
     val precedenceTypes = PrecedenceTypes.forElement(this)
     val importedFqns = precedenceTypes.defaultImportsWithPrecedence
 
     importedFqns.foreach { case (fqn, precedence) =>
       ProgressManager.checkCanceled()
-      if (!shouldNotProcessDefaultImport(fqn)) {
 
+      if (!shouldNotProcessDefaultImport(fqn)) {
         updateProcessor(processor, precedence) {
-          manager.getCachedClasses(scope, fqn)
+          val cachedClasses = manager.getCachedClasses(scope, fqn)
+          cachedClasses
             .findByType[ScObject]
             .foreach { `object` =>
               if (!processPackageObject(`object`)(processor, state, null, place))
                 return false
             }
 
-          manager.getCachedPackageInProjectScope(fqn)
-            .foreach { `package` =>
-              if (!packageProcessDeclarations(`package`)(processor, state, null, place))
-                return false
-            }
+          val cachedPackage = manager.getCachedPackageInProjectScope(fqn)
+          cachedPackage.foreach { `package` =>
+            if (!packageProcessDeclarations(`package`)(processor, state, null, place))
+              return false
+          }
         }
       }
 

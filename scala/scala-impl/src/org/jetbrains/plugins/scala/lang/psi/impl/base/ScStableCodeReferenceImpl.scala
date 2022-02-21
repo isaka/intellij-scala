@@ -287,7 +287,8 @@ class ScStableCodeReferenceImpl(node: ASTNode) extends ScReferenceImpl(node) wit
   @CachedWithRecursionGuard(this, ScalaResolveResult.EMPTY_ARRAY, BlockModificationTracker(this))
   override def multiResolveScala(incomplete: Boolean): Array[ScalaResolveResult] = {
     val resolver = new StableCodeReferenceResolver(ScStableCodeReferenceImpl.this, false, false, false)
-    resolver.resolve()
+    val result = resolver.resolve()
+    result
   }
 
   private def processQualifier(processor: BaseProcessor): Array[ScalaResolveResult] = {
@@ -366,12 +367,14 @@ class ScStableCodeReferenceImpl(node: ASTNode) extends ScReferenceImpl(node) wit
         q.multiResolveScala(incomplete = true)
           .flatMap(processQualifierResolveResult(q, _, processor))
       case Some(q: ScStableCodeReference) =>
-        q.bind() match {
+        val bindResult = q.bind()
+        val result = bindResult match {
           case Some(res) =>
             processQualifierResolveResult(q, res, processor)
           case _ =>
             processor.candidates
         }
+        result
       case Some(thisQ: ScThisReference) =>
         for (ttype <- thisQ.`type`()) processor.processType(ttype, this)
         processor.candidates
@@ -438,11 +441,9 @@ class ScStableCodeReferenceImpl(node: ASTNode) extends ScReferenceImpl(node) wit
       case ScalaResolveResult(clazz: PsiClass, _) =>
         processor.processType(ScDesignatorType.static(clazz), this) //static Java import
       case ScalaResolveResult(pack: ScPackage, s) =>
-        pack.processDeclarations(processor, ScalaResolveState.withSubstitutor(s),
-          null, this)
+        pack.processDeclarations(processor, ScalaResolveState.withSubstitutor(s), null, this)
       case other: ScalaResolveResult =>
-        other.element.processDeclarations(processor, ScalaResolveState.withSubstitutor(other.substitutor),
-          null, this)
+        other.element.processDeclarations(processor, ScalaResolveState.withSubstitutor(other.substitutor), null, this)
       case _ =>
     }
 

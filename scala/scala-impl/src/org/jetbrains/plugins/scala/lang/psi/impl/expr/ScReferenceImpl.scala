@@ -41,7 +41,8 @@ abstract class ScReferenceImpl(node: ASTNode) extends ScalaPsiElementImpl(node) 
   override final def bind(): Option[ScalaResolveResult] = {
     ProgressManager.checkCanceled()
 
-    multiResolveScala(false) match {
+    val result = multiResolveScala(false)
+    result match {
       case Array(r) => Some(r)
       case _ => None
     }

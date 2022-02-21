@@ -48,7 +48,8 @@ final class ScalaShortNamesCacheManager(implicit project: Project) {
       return Nil
     }
 
-    ScClassFqnIndex.instance.elementsByHash(fqn, project, scope)
+    val candidates = ScClassFqnIndex.instance.elementsByHash(fqn, project, scope)
+    candidates
       .filter(cls => cls.qualifiedName != null && equivalentFqn(fqn, cls.qualifiedName))
       .flatMap {
         case cls: ScTypeDefinition => // Add fakeCompanionModule when ScTypeDefinition

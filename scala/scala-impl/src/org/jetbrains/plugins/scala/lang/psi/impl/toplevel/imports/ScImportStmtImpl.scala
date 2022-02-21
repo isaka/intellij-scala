@@ -133,9 +133,11 @@ object ScImportOrExportImpl {
             ref.resolveTypesOnly(false)
           case ref: ScStableCodeReference if p.kinds.contains(ResolveTargets.METHOD) =>
             ref.resolveMethodsOnly(false)
-          case _ => ref.multiResolveScala(false)
+          case _ =>
+            ref.multiResolveScala(false)
         }
-      case _ => ref.multiResolveScala(false)
+      case _ =>
+        ref.multiResolveScala(false)
     }
 
     def isInPackageObject(element: PsiNamedElement): Boolean =

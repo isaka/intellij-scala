@@ -1176,7 +1176,8 @@ object ScalaImportOptimizer {
     }
 
     def addWithImplicits(srr: ScalaResolveResult, fromElem: PsiElement): Unit = {
-      withImplicits(srr).foreach(addResult(_, fromElem))
+      val wi = withImplicits(srr)
+      wi.foreach(addResult(_, fromElem))
     }
 
     def withImplicits(srr: ScalaResolveResult): Seq[ScalaResolveResult] = {
@@ -1187,8 +1188,10 @@ object ScalaImportOptimizer {
 
     def addFromExpression(expr: ScExpression): Unit = {
       expr match {
-        case call: ScMethodCall => imports.addAll(call.getImportsUsed.asJava)
-        case f: ScFor => imports.addAll(ScalaPsiUtil.getExprImports(f).asJava)
+        case call: ScMethodCall =>
+          imports.addAll(call.getImportsUsed.asJava)
+        case f: ScFor =>
+          imports.addAll(ScalaPsiUtil.getExprImports(f).asJava)
         case _ =>
       }
 
@@ -1206,7 +1209,8 @@ object ScalaImportOptimizer {
           names.add(UsedName(impQual.refName, impQual.getTextRange.getStartOffset))
         }
       case ref: ScReference if ScalaPsiUtil.getParentImportStatement(ref) == null =>
-        ref.multiResolveScala(false).foreach(addWithImplicits(_, ref))
+        val resolved = ref.multiResolveScala(false)
+        resolved.foreach(addWithImplicits(_, ref))
       case c: ScConstructorInvocation =>
         c.findImplicitArguments match {
           case Some(parameters) =>

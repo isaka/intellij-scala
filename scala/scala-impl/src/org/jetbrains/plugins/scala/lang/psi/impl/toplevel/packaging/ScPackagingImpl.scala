@@ -86,23 +86,26 @@ final class ScPackagingImpl private[psi](stub: ScPackagingStub,
     val isTreeWalkUp = lastParent != null && lastParent.getContext == this
 
     if (isTreeWalkUp && FileDeclarationsHolder.isProcessLocalClasses(lastParent) &&
-      !super[ScDeclarationSequenceHolder].processDeclarations(processor, state, lastParent, place)) return false
+      !super[ScDeclarationSequenceHolder].processDeclarations(processor, state, lastParent, place))
+      return false
 
     //If stub is not null, then we are not trying to resolve packaging reference.
     if (getStub != null || !reference.contains(lastParent)) {
       ProgressManager.checkCanceled()
 
       findPackage(fullPackageName) match {
-        case Some(p) if !p.processDeclarations(processor, state, lastParent, place) => return false
-        case _                                                                      =>
+        case Some(p) if !p.processDeclarations(processor, state, lastParent, place) =>
+          return false
+        case _ =>
       }
 
-      if (!findPackageObject(place.resolveScope)
-            .forall(processPackageObject(_)(processor, state, lastParent, place)))
+      val maybePackageObject = findPackageObject(place.resolveScope)
+      if (!maybePackageObject.forall(processPackageObject(_)(processor, state, lastParent, place)))
         return false
 
       if (this.isInScala3Module) {
-        if (!processTopLevelDeclarations(processor, state, place)) return false
+        if (!processTopLevelDeclarations(processor, state, place))
+          return false
       }
     }
 
@@ -155,9 +158,10 @@ final class ScPackagingImpl private[psi](stub: ScPackagingStub,
   override def immediateMembers: Seq[ScMember] =
     getStubOrPsiChildren(MEMBERS, JavaArrayFactoryUtil.ScMemberFactory).toSeq
 
-  private def findPackage(name: String) =
-    Option(JavaPsiFacade.getInstance(getProject).findPackage(name))
-      .map(ScPackageImpl(_))
+  private def findPackage(name: String): Option[ScPackageImpl] = {
+    val psiPackage = Option(JavaPsiFacade.getInstance(getProject).findPackage(name))
+    psiPackage.map(ScPackageImpl(_))
+  }
 
   override protected def keywordTokenType: IElementType = ScalaTokenTypes.kPACKAGE
 
