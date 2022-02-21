@@ -1,9 +1,4 @@
-package org.jetbrains.plugins.scala
-package lang
-package psi
-package impl
-package toplevel
-package synthetic
+package org.jetbrains.plugins.scala.lang.psi.impl.toplevel.synthetic
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
@@ -12,9 +7,12 @@ import com.intellij.psi.impl.light.LightElement
 import com.intellij.psi.scope.PsiScopeProcessor
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.util.IncorrectOperationException
+import org.jetbrains.plugins.scala.ScalaLanguage
 import org.jetbrains.plugins.scala.extensions._
+import org.jetbrains.plugins.scala.lang.psi.ScalaPsiUtil
 import org.jetbrains.plugins.scala.lang.psi.api.toplevel.ScPackaging
 import org.jetbrains.plugins.scala.lang.psi.api.toplevel.typedef.{ScObject, ScTypeDefinition}
+import org.jetbrains.plugins.scala.lang.psi.impl.ScPackageImpl
 import org.jetbrains.plugins.scala.lang.psi.stubs.index.{ScPackageObjectFqnIndex, ScPackagingFqnIndex}
 import org.jetbrains.plugins.scala.lang.refactoring.util.ScalaNamesUtil
 import org.jetbrains.plugins.scala.lang.resolve.ResolveTargets._
@@ -25,11 +23,11 @@ import scala.collection.mutable
 /**
  * @author ilyas
  */
-abstract class ScSyntheticPackage(name: String, manager: PsiManager)
-  extends LightElement(manager, ScalaLanguage.INSTANCE) with PsiPackage {
+abstract class ScSyntheticPackage(manager: PsiManager)
+  extends LightElement(manager, ScalaLanguage.INSTANCE)
+    with PsiPackage {
 
-  override def handleQualifiedNameChange(newQualifiedName: String): Unit = {
-  }
+  override def handleQualifiedNameChange(newQualifiedName: String): Unit = {}
   override def getDirectories: Array[PsiDirectory] = PsiDirectory.EMPTY_ARRAY
   override def checkSetName(s: String): Unit = {
     throw new IncorrectOperationException("cannot set name: nonphysical element")
@@ -40,6 +38,7 @@ abstract class ScSyntheticPackage(name: String, manager: PsiManager)
   override def getModifierList: PsiModifierList = ScalaPsiUtil.getEmptyModifierList(getManager)
   override def hasModifierProperty(s: String) = false
   override def getAnnotationList: PsiModifierList = null
+  def name: String
   override def getName: String = name
   override def setName(newName: String) = throw new IncorrectOperationException("cannot set name: nonphysical element")
   override def copy = throw new IncorrectOperationException("cannot copy: nonphysical element")
@@ -75,118 +74,137 @@ abstract class ScSyntheticPackage(name: String, manager: PsiManager)
 object ScSyntheticPackage {
 
   def apply(fqn: String)
-           (implicit project: Project): ScSyntheticPackage = {
-    val (name, parentName) = fqn.lastIndexOf(".") match {
+           (implicit project: Project): Option[ScSyntheticPackage] = {
+    val packagings: Iterable[ScPackaging] = findPackagingsInProject(fqn, project)
+    if (packagings.nonEmpty)
+      Some(new ScSyntheticPackageForPackagings(fqn, packagings, project))
+    else {
+      val packageObject = findPackageObjectInProject(fqn, project)
+      if (packageObject.nonEmpty)
+        Some(new ScSyntheticPackageForPackageObject(fqn, project))
+      else None
+    }
+  }
+
+  private def findPackagingsInProject(fqn: String, project: Project): Iterable[ScPackaging] = {
+    val packagings = ScPackagingFqnIndex.instance.elementsByHash(fqn, project, GlobalSearchScope.allScope(project))
+    if (packagings.isEmpty)
+      Nil
+    else {
+      val fqnClean = ScalaNamesUtil.cleanFqn(fqn)
+      packagings.filter { packaging =>
+        ScalaNamesUtil.cleanFqn(packaging.fullPackageName).startsWith(fqnClean) && fqnClean.startsWith(ScalaNamesUtil.cleanFqn(packaging.parentPackageName))
+      }
+    }
+  }
+
+  private def findPackageObjectInProject(fqn: String, project: Project): Option[ScObject] = {
+    val objects = ScPackageObjectFqnIndex.instance.elementsByHash(fqn, project, GlobalSearchScope.allScope(project))
+    val objectWithSameFqn = objects.find(packageObject => {
+      val fqnFromIndex = packageObject.qualifiedName
+      fqnFromIndex != null && ScalaNamesUtil.equivalentFqn(fqnFromIndex, fqn)
+    })
+    objectWithSameFqn
+  }
+
+  private abstract class ScSyntheticPackageBase(
+    protected val fqn: String,
+    project: Project,
+  ) extends ScSyntheticPackage(PsiManager.getInstance(project)) {
+
+    protected val (_name, parentName) = fqn.lastIndexOf(".") match {
       case -1 => (fqn, "")
       case i => (fqn.substring(i + 1), fqn.substring(0, i))
     }
+    protected val fqnClean: String = ScalaNamesUtil.cleanFqn(fqn)
 
-    val globalProjectScope = GlobalSearchScope.allScope(project)
+    override def name: String = _name
+  }
 
-    val packages: Iterable[ScPackaging] = ScPackagingFqnIndex.instance.elementsByHash(fqn, project, globalProjectScope)
-    if (packages.isEmpty) {
-      val packageObjects = ScPackageObjectFqnIndex.instance.elementsByHash(fqn, project, globalProjectScope)
-      val withSameFqn = packageObjects.find(packageObject => {
-        val fqnFromIndex = packageObject.qualifiedName
-        fqnFromIndex != null && ScalaNamesUtil.equivalentFqn(fqnFromIndex, fqn)
-      })
-      if (withSameFqn.nonEmpty) {
-        new ScSyntheticPackage(name, PsiManager.getInstance(project)) {
-          override def getFiles(globalSearchScope: GlobalSearchScope): Array[PsiFile] = Array.empty //todo: ?
-          override def containsClassNamed(name: String): Boolean = false
+  private class ScSyntheticPackageForPackagings(
+    fqn: String,
+    packagings: Iterable[ScPackaging],
+    project: Project
+  ) extends ScSyntheticPackageBase(fqn, project) {
 
-          override def getQualifiedName: String = fqn
+    override def getFiles(globalSearchScope: GlobalSearchScope): Array[PsiFile] = Array.empty //todo: ?
 
-          override def getClasses: Array[PsiClass] = Array.empty
+    override def findClassByShortName(name: String, scope: GlobalSearchScope): Array[PsiClass] =
+      getClasses.filter(n => ScalaNamesUtil.equivalentFqn(n.name, name))
 
-          override def getClasses(scope: GlobalSearchScope): Array[PsiClass] = Array.empty
+    override def containsClassNamed(name: String): Boolean =
+      getClasses.exists(n => ScalaNamesUtil.equivalentFqn(n.name, name))
 
-          override def getParentPackage: ScPackageImpl = ScPackageImpl.findPackage(project, parentName)
+    override def getQualifiedName: String = fqn
 
-          override def getSubPackages: Array[PsiPackage] = Array.empty
-
-          override def getSubPackages(scope: GlobalSearchScope): Array[PsiPackage] = Array.empty
-
-          override def findClassByShortName(name: String, scope: GlobalSearchScope): Array[PsiClass] = Array.empty
-        }
-      }
-      else null
+    override def getClasses: Array[PsiClass] = {
+      packagings.flatMap(p =>
+        if (ScalaNamesUtil.cleanFqn(p.fullPackageName).length == fqnClean.length)
+          p.immediateTypeDefinitions.flatMap {
+            case td@(c: ScTypeDefinition) if c.fakeCompanionModule.isDefined =>
+              Seq(td, c.fakeCompanionModule.get)
+            case td => Seq(td)
+          }
+        else Seq.empty).toArray
     }
-    else {
-      val cleanName = ScalaNamesUtil.cleanFqn(fqn)
-      packages.filter { pc =>
-        ScalaNamesUtil.cleanFqn(pc.fullPackageName).startsWith(cleanName) && cleanName.startsWith(ScalaNamesUtil.cleanFqn(pc.parentPackageName))
-      } match {
-        case seq if seq.isEmpty => null
-        case filtered =>
-          new ScSyntheticPackage(name, PsiManager.getInstance(project)) {
-            override def getFiles(globalSearchScope: GlobalSearchScope): Array[PsiFile] = Array.empty //todo: ?
 
-            override def findClassByShortName(name: String, scope: GlobalSearchScope): Array[PsiClass] = {
-              getClasses.filter(n => ScalaNamesUtil.equivalentFqn(n.name, name))
-            }
+    override def getClasses(scope: GlobalSearchScope): Array[PsiClass] =
+      getClasses.filter { clazz =>
+        val file = clazz.getContainingFile.getVirtualFile
+        file != null && scope.contains(file)
+      }
 
-            override def containsClassNamed(name: String): Boolean = {
-              getClasses.exists(n => ScalaNamesUtil.equivalentFqn(n.name, name))
-            }
+    override def getParentPackage: ScPackageImpl = ScPackageImpl.findPackage(project, parentName)
 
-            override def getQualifiedName: String = fqn
+    override def getSubPackages(scope: GlobalSearchScope): Array[PsiPackage] = getSubPackages
 
-            override def getClasses: Array[PsiClass] = {
-              filtered.flatMap(p =>
-                if (ScalaNamesUtil.cleanFqn(p.fullPackageName).length == cleanName.length)
-                  p.immediateTypeDefinitions.flatMap {
-                    case td@(c: ScTypeDefinition) if c.fakeCompanionModule.isDefined =>
-                      Seq(td, c.fakeCompanionModule.get)
-                    case td => Seq(td)
-                  }
-                else Seq.empty).toArray
-            }
-
-            override def getClasses(scope: GlobalSearchScope): Array[PsiClass] =
-              getClasses.filter { clazz =>
-                val file = clazz.getContainingFile.getVirtualFile
-                file != null && scope.contains(file)
-              }
-
-            override def getParentPackage: ScPackageImpl = ScPackageImpl.findPackage(project, parentName)
-
-            override def getSubPackages: Array[PsiPackage] = {
-              val buff = new mutable.HashSet[PsiPackage]
-              filtered.foreach{
-                p =>
-                  def addPackage(tail : String): Unit = {
-                    val p = ScPackageImpl.findPackage(project, fqn + "." + tail)
-                    if (p != null) buff += p
-                  }
-
-                  val fqn1 = p.fullPackageName
-                  val tail = if (fqn1.length > fqn.length) fqn1.substring(fqn.length + 1) else ""
-                  if (tail.isEmpty) {
-                    p.packagings.foreach {
-                      pack => {
-                        val own = pack.packageName
-                        val i = own.indexOf(".")
-                        addPackage(if (i > 0) own.substring(0, i) else own)
-                      }
-                    }
-                    p.immediateTypeDefinitions.foreach {
-                      case o: ScObject if o.isPackageObject && o.getName != "`package`" =>
-                        addPackage(o.name)
-                      case _ =>
-                    }
-                  } else {
-                    val i = tail.indexOf(".")
-                    val next = if (i > 0) tail.substring(0, i) else tail
-                    addPackage(next)
-                  }
-              }
-              buff.toArray
-            }
-            override def getSubPackages(scope: GlobalSearchScope): Array[PsiPackage] = getSubPackages
+    override def getSubPackages: Array[PsiPackage] = {
+      val buff = new mutable.HashSet[PsiPackage]
+      packagings.foreach {
+        p =>
+          def addPackage(tail: String): Unit = {
+            val p = ScPackageImpl.findPackage(project, fqn + "." + tail)
+            if (p != null) buff += p
           }
 
+          val fqn1 = p.fullPackageName
+          val tail = if (fqn1.length > fqn.length) fqn1.substring(fqn.length + 1) else ""
+          if (tail.isEmpty) {
+            p.packagings.foreach {
+              pack => {
+                val own = pack.packageName
+                val i = own.indexOf(".")
+                addPackage(if (i > 0) own.substring(0, i) else own)
+              }
+            }
+            p.immediateTypeDefinitions.foreach {
+              case o: ScObject if o.isPackageObject && o.getName != "`package`" =>
+                addPackage(o.name)
+              case _ =>
+            }
+          } else {
+            val i = tail.indexOf(".")
+            val next = if (i > 0) tail.substring(0, i) else tail
+            addPackage(next)
+          }
       }
+      buff.toArray
     }
+  }
+
+  private class ScSyntheticPackageForPackageObject(
+    fqn: String,
+    project: Project
+  ) extends ScSyntheticPackageBase(fqn, project) {
+
+    override def getFiles(globalSearchScope: GlobalSearchScope): Array[PsiFile] = Array.empty //todo: ?
+    override def containsClassNamed(name: String): Boolean = false
+    override def getQualifiedName: String = fqn
+    override def getClasses: Array[PsiClass] = Array.empty
+    override def getClasses(scope: GlobalSearchScope): Array[PsiClass] = Array.empty
+    override def getParentPackage: ScPackageImpl = ScPackageImpl.findPackage(project, parentName)
+    override def getSubPackages: Array[PsiPackage] = Array.empty
+    override def getSubPackages(scope: GlobalSearchScope): Array[PsiPackage] = Array.empty
+    override def findClassByShortName(name: String, scope: GlobalSearchScope): Array[PsiClass] = Array.empty
   }
 }

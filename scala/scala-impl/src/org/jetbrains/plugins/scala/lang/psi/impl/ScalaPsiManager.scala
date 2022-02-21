@@ -392,7 +392,10 @@ class ScalaPsiManager(implicit val project: Project) {
 
   def syntheticPackage(fqn: String): ScSyntheticPackage = {
     val syntheticOrEmptyMarker =
-      syntheticPackages.computeIfAbsent(fqn, fqn => Option(ScSyntheticPackage(fqn)(project)).getOrElse(emptyMarker))
+      syntheticPackages.computeIfAbsent(fqn, fqn => {
+        val synthetic = ScSyntheticPackage.apply(fqn)(project)
+        synthetic.getOrElse(emptyMarker)
+      })
 
     syntheticOrEmptyMarker match {
       case s: ScSyntheticPackage => s
