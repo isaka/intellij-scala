@@ -1,6 +1,7 @@
 <!--suppress PluginXmlValidity -->
 <idea-plugin>
 
+    <!-- Read more about extension points at https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensionPoints>
         <extensionPoint qualifiedName="org.intellij.scala.scalaIntentionAvailabilityChecker" interface="org.jetbrains.plugins.scala.util.IntentionAvailabilityChecker" dynamic="true"/>
         <extensionPoint qualifiedName="org.intellij.scala.scalaPluginVersionVerifier" interface="org.jetbrains.plugins.scala.components.ScalaPluginVersionVerifier" dynamic="true"/>
@@ -33,6 +34,8 @@
 
         <extensionPoint qualifiedName="org.intellij.scala.sbtUnlinkedProjectAwareHelper" interface="org.jetbrains.sbt.project.SbtUnlinkedProjectAwareHelper"/>
     </extensionPoints>
+
+    <!-- Read more about extensions at https://plugins.jetbrains.com/docs/intellij/plugin-extensions.html -->
 
     <extensions defaultExtensionNs="org.intellij.scala">
         <!--<syntheticMemberInjector implementation="scala.meta.MetaAnnotationInjector"/>-->
@@ -1871,6 +1874,8 @@
 
     </extensions>
 
+    <!-- Read more about listeners at https://plugins.jetbrains.com/docs/intellij/plugin-listeners.html -->
+
     <applicationListeners>
         <listener topic="com.intellij.openapi.project.ProjectManagerListener"
                   class="org.jetbrains.plugins.scala.editor.mouseHandler.MouseHoverHandler"/>
@@ -1942,6 +1947,8 @@
                   class="org.jetbrains.plugins.scala.debugger.evaluation.ScalaEvaluatorCompileHelper$Listener"/>
 
     </projectListeners>
+
+    <!-- Read more about actions at https://plugins.jetbrains.com/docs/intellij/basic-action-system.html -->
     <actions>
         <action id="Scala.NewClass" class="org.jetbrains.plugins.scala.actions.NewScalaTypeDefinitionAction">
             <add-to-group group-id="NewGroup" anchor="after" relative-to-action="NewGroup1"/>
